@@ -2,85 +2,142 @@
 import streamlit as st
 
 # Import required libraries for image handling and prediction
-import numpy as np  # numerical operations
-import joblib  # load label encoder
-import tensorflow as tf  # load trained model
-from tensorflow.keras.preprocessing import image  # image loading utility
-from tensorflow.keras.applications.efficientnet import preprocess_input  # preprocessing
+import numpy as np
+import joblib
+import tensorflow as tf
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.efficientnet import preprocess_input
 
 # -------------------------------
-# Load trained model and encoder
+# Page Configuration (UI ONLY)
 # -------------------------------
+st.set_page_config(
+    page_title="Butterfly Classifier",
+    page_icon="🦋",
+    layout="centered"
+)
 
-# Load the trained EfficientNet model
+# -------------------------------
+# Custom CSS Styling (ONLY DESIGN)
+# -------------------------------
+st.markdown("""
+<style>
+
+body {
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+}
+
+/* Main title */
+.main-title {
+    text-align: center;
+    font-size: 42px;
+    font-weight: bold;
+    color: #ffffff;
+    animation: fadeIn 1.5s ease-in-out;
+}
+
+/* Subtitle */
+.sub-title {
+    text-align: center;
+    color: #cfd8dc;
+    font-size: 18px;
+    margin-bottom: 25px;
+}
+
+/* Upload box */
+.upload-box {
+    background: rgba(255,255,255,0.08);
+    padding: 20px;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0px 0px 20px rgba(0,0,0,0.3);
+}
+
+/* Button styling */
+.stButton>button {
+    background: linear-gradient(90deg, #00c6ff, #0072ff);
+    color: white;
+    font-size: 16px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: none;
+    transition: 0.3s;
+}
+
+.stButton>button:hover {
+    transform: scale(1.05);
+    box-shadow: 0px 0px 15px #00c6ff;
+}
+
+/* Fade animation */
+@keyframes fadeIn {
+    0% {opacity: 0; transform: translateY(-20px);}
+    100% {opacity: 1; transform: translateY(0);}
+}
+
+.result-box {
+    background: rgba(255,255,255,0.1);
+    padding: 15px;
+    border-radius: 12px;
+    margin-top: 15px;
+    color: white;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------
+# Load Model and Encoder
+# -------------------------------
 model = tf.keras.models.load_model("models/Effnet_model.keras")
-
-# Load the label encoder (class mapping)
 label_encoder = joblib.load("models/label_encoder.joblib")
 
 # -------------------------------
-# Streamlit UI setup
+# UI Header
 # -------------------------------
-
-# App title
-st.title("🦋 Butterfly Classification App")
-
-# App description
-st.write("Upload a butterfly image and the model will predict its species.")
-
-# File uploader widget
-uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"])
+st.markdown('<div class="main-title">🦋 Butterfly Classification</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Upload an image and discover the butterfly species</div>', unsafe_allow_html=True)
 
 # -------------------------------
-# Prediction function
+# File Upload
 # -------------------------------
+uploaded_file = st.file_uploader("Upload Butterfly Image", type=["jpg", "jpeg", "png"])
 
+# -------------------------------
+# Prediction Function (UNCHANGED LOGIC)
+# -------------------------------
 def predict_butterfly(img):
 
-    # Resize image to model input size (224x224)
     img = img.resize((224, 224))
-
-    # Convert image to array
     img_array = image.img_to_array(img)
-
-    # Add batch dimension (1, 224, 224, 3)
     img_array = np.expand_dims(img_array, axis=0)
-
-    # Apply EfficientNet preprocessing
     img_array = preprocess_input(img_array)
 
-    # Predict using model
     prediction = model.predict(img_array)
 
-    # Get highest probability class index
     predicted_class = np.argmax(prediction)
-
-    # Convert index to class name
     class_name = label_encoder.inverse_transform([predicted_class])[0]
-
-    # Get confidence score
     confidence = np.max(prediction)
 
     return class_name, confidence
 
 # -------------------------------
-# Run prediction when image uploaded
+# Output Section
 # -------------------------------
-
 if uploaded_file is not None:
 
-    # Display uploaded image
-    st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
+    st.image(uploaded_file, caption="Uploaded Butterfly", use_column_width=True)
 
-    # Convert uploaded file to PIL image
     img = image.load_img(uploaded_file)
 
-    # Predict button
-    if st.button("Predict Species"):
+    if st.button("✨ Predict Species"):
 
-        # Get prediction
         label, confidence = predict_butterfly(img)
 
-        # Show result
-        st.success(f"Prediction: {label}")
-        st.info(f"Confidence: {confidence:.2%}")
+        st.markdown(f"""
+        <div class="result-box">
+            <h3>🧬 Prediction Result</h3>
+            <p><b>Species:</b> {label}</p>
+            <p><b>Confidence:</b> {confidence:.2%}</p>
+        </div>
+        """, unsafe_allow_html=True)
