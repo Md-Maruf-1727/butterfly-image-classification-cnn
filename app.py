@@ -1,187 +1,372 @@
+# Import Streamlit for web app UI
 import streamlit as st
-import numpy as np
-import joblib
-import tensorflow as tf
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.efficientnet import preprocess_input
-from PIL import Image
-import time
+# Import required libraries for image handling and prediction
+import numpy as np  # numerical operations
+import joblib  # load label encoder
+import tensorflow as tf  # load trained model
+from tensorflow.keras.preprocessing import image  # image loading utility
+from tensorflow.keras.applications.efficientnet import preprocess_input  # preprocessing
 
 # -------------------------------
-# Page Config
+# Page config (must be first Streamlit call)
 # -------------------------------
 st.set_page_config(
-    page_title="Lepidoptera AI",
+    page_title="Lepidoptera | Species Identification",
     page_icon="🦋",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
 
 # -------------------------------
-# Modern Glassmorphism CSS
+# Load trained model and encoder
+# -------------------------------
+# Load the trained EfficientNet model
+model = tf.keras.models.load_model("models/Effnet_model.keras")
+# Load the label encoder (class mapping)
+label_encoder = joblib.load("models/label_encoder.joblib")
+
+# -------------------------------
+# Custom CSS — design system
 # -------------------------------
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* Animated background */
-.stApp {
-    background: linear-gradient(-45deg, #0f172a, #1e293b, #0b1220, #111827);
-    background-size: 400% 400%;
-    animation: gradientBG 12s ease infinite;
-    color: white;
-}
+    :root {
+        --ink: #f4efe4;
+        --ink-dim: #b8b09c;
+        --forest: #14201a;
+        --forest-deep: #0c1410;
+        --forest-card: #1b2a22;
+        --gold: #c89b4a;
+        --gold-bright: #e0b65f;
+        --line: rgba(200, 155, 74, 0.22);
+    }
 
-@keyframes gradientBG {
-    0% {background-position: 0% 50%;}
-    50% {background-position: 100% 50%;}
-    100% {background-position: 0% 50%;}
-}
+    /* Hide default Streamlit chrome */
+    #MainMenu, footer, header {visibility: hidden;}
+    .stDeployButton {display: none;}
 
-/* Glass card */
-.card {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(12px);
-    border-radius: 20px;
-    padding: 20px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
-    border: 1px solid rgba(255,255,255,0.1);
-}
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
 
-/* Header */
-.header {
-    text-align: center;
-    padding: 30px;
-    border-radius: 20px;
-    background: linear-gradient(90deg, #6366f1, #a855f7);
-    box-shadow: 0 10px 40px rgba(99,102,241,0.4);
-    animation: glow 3s infinite alternate;
-}
+    .stApp {
+        background:
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(200,155,74,0.10), transparent),
+            linear-gradient(180deg, var(--forest-deep) 0%, var(--forest) 100%);
+        color: var(--ink);
+    }
 
-@keyframes glow {
-    from {box-shadow: 0 0 20px #6366f1;}
-    to {box-shadow: 0 0 40px #a855f7;}
-}
+    .block-container {
+        max-width: 720px;
+        padding-top: 3rem;
+        padding-bottom: 4rem;
+    }
 
-.header h1 {
-    font-size: 3rem;
-    margin: 0;
-}
+    /* -------- Hero -------- */
+    .hero-eyebrow {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.72rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--gold);
+        text-align: center;
+        margin-bottom: 0.9rem;
+        opacity: 0;
+        animation: fadeUp 0.7s ease-out 0.05s forwards;
+    }
 
-/* Buttons */
-.stButton > button {
-    background: linear-gradient(90deg, #22c55e, #06b6d4);
-    color: white;
-    border-radius: 12px;
-    padding: 0.7rem 1.5rem;
-    font-weight: bold;
-    border: none;
-    transition: 0.3s;
-}
+    .hero-title {
+        font-family: 'Fraunces', serif;
+        font-weight: 500;
+        font-size: 3rem;
+        line-height: 1.08;
+        text-align: center;
+        color: var(--ink);
+        margin: 0 0 0.6rem 0;
+        opacity: 0;
+        animation: fadeUp 0.8s ease-out 0.15s forwards;
+    }
 
-.stButton > button:hover {
-    transform: scale(1.08);
-    box-shadow: 0 10px 25px rgba(34,197,94,0.4);
-}
+    .hero-title em {
+        font-style: italic;
+        color: var(--gold-bright);
+    }
 
-/* Image styling */
-img {
-    border-radius: 15px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-}
+    .hero-sub {
+        text-align: center;
+        color: var(--ink-dim);
+        font-size: 1.02rem;
+        max-width: 460px;
+        margin: 0 auto 2.6rem auto;
+        line-height: 1.6;
+        opacity: 0;
+        animation: fadeUp 0.8s ease-out 0.28s forwards;
+    }
 
-/* Result box */
-.result {
-    background: rgba(34, 197, 94, 0.1);
-    border: 1px solid #22c55e;
-    padding: 20px;
-    border-radius: 15px;
-    animation: pop 0.5s ease;
-}
+    .hero-rule {
+        width: 56px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--gold), transparent);
+        margin: 0 auto 2.6rem auto;
+        opacity: 0;
+        animation: fadeUp 0.8s ease-out 0.4s forwards;
+    }
 
-@keyframes pop {
-    from {transform: scale(0.9); opacity: 0;}
-    to {transform: scale(1); opacity: 1;}
-}
+    @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 
+    /* -------- Specimen card (uploader) -------- */
+    .specimen-frame {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: linear-gradient(160deg, var(--forest-card), rgba(27,42,34,0.5));
+        padding: 2.2rem 2rem 1.6rem 2rem;
+        margin-bottom: 1.6rem;
+        opacity: 0;
+        animation: fadeUp 0.8s ease-out 0.5s forwards;
+    }
+
+    .specimen-frame::before,
+    .specimen-frame::after {
+        content: "";
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border: 1px solid var(--gold);
+        opacity: 0.55;
+    }
+    .specimen-frame::before { top: 10px; left: 10px; border-right: none; border-bottom: none; }
+    .specimen-frame::after { bottom: 10px; right: 10px; border-left: none; border-top: none; }
+
+    .specimen-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.68rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+        text-align: center;
+        margin-bottom: 1.1rem;
+    }
+
+    [data-testid="stFileUploader"] {
+        border: 1px dashed var(--line);
+        border-radius: 4px;
+        padding: 0.4rem;
+        background: rgba(12, 20, 16, 0.35);
+        transition: border-color 0.25s ease, background 0.25s ease;
+    }
+    [data-testid="stFileUploader"]:hover {
+        border-color: var(--gold);
+        background: rgba(200,155,74,0.05);
+    }
+    [data-testid="stFileUploaderDropzone"] {
+        background: transparent;
+    }
+    [data-testid="stFileUploader"] section {
+        background: transparent;
+        border: none;
+    }
+    [data-testid="stFileUploader"] small,
+    [data-testid="stFileUploader"] span {
+        color: var(--ink-dim) !important;
+    }
+
+    /* Uploaded image styling */
+    [data-testid="stImage"] img {
+        border-radius: 4px;
+        border: 1px solid var(--line);
+        animation: revealImg 0.6s ease-out;
+    }
+    @keyframes revealImg {
+        from { opacity: 0; transform: scale(0.97); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    /* -------- Predict button -------- */
+    .stButton > button {
+        width: 100%;
+        background: linear-gradient(135deg, var(--gold), #a87c34);
+        color: #1a1208;
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        font-size: 0.92rem;
+        letter-spacing: 0.02em;
+        border: none;
+        border-radius: 4px;
+        padding: 0.72rem 1rem;
+        margin-top: 0.6rem;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        box-shadow: 0 4px 18px rgba(200,155,74,0.18);
+    }
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.07);
+        box-shadow: 0 6px 24px rgba(200,155,74,0.3);
+    }
+    .stButton > button:active {
+        transform: translateY(0px);
+    }
+
+    /* -------- Result card -------- */
+    .result-card {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: linear-gradient(160deg, var(--forest-card), rgba(27,42,34,0.4));
+        padding: 1.8rem 1.9rem;
+        margin-top: 1.4rem;
+        animation: resultIn 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes resultIn {
+        from { opacity: 0; transform: translateY(10px) scale(0.985); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .result-eyebrow {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.66rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--gold);
+        margin-bottom: 0.5rem;
+    }
+
+    .result-species {
+        font-family: 'Fraunces', serif;
+        font-weight: 600;
+        font-size: 1.85rem;
+        color: var(--ink);
+        line-height: 1.2;
+        margin-bottom: 1.1rem;
+        text-transform: capitalize;
+    }
+
+    .confidence-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.74rem;
+        color: var(--ink-dim);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
+
+    .confidence-value {
+        color: var(--gold-bright);
+        font-size: 0.9rem;
+    }
+
+    .confidence-track {
+        width: 100%;
+        height: 5px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .confidence-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #a87c34, var(--gold-bright));
+        border-radius: 3px;
+        width: 0%;
+        animation: fillBar 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+    }
+
+    @keyframes fillBar {
+        to { width: var(--target-width); }
+    }
+
+    /* Footer */
+    .footer-note {
+        text-align: center;
+        color: var(--ink-dim);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-top: 3rem;
+        opacity: 0.5;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------
-# Load Model
-# -------------------------------
-@st.cache_resource
-def load_model():
-    model = tf.keras.models.load_model("models/Effnet_model.keras")
-    encoder = joblib.load("models/label_encoder.joblib")
-    return model, encoder
-
-model, encoder = load_model()
-
-# -------------------------------
-# Header
+# Hero section
 # -------------------------------
 st.markdown("""
-<div class="header">
-    <h1>🦋 Lepidoptera AI</h1>
-    <p>Next-Gen Butterfly Species Classifier</p>
-</div>
+<div class="hero-eyebrow">Field Identification Tool</div>
+<h1 class="hero-title">Lepidoptera<br><em>Species Classifier</em></h1>
+<p class="hero-sub">Upload a photograph of a butterfly and the model will identify its species from 75 known classifications, trained on EfficientNetB0.</p>
+<div class="hero-rule"></div>
 """, unsafe_allow_html=True)
 
-st.write("")
+# -------------------------------
+# Upload card
+# -------------------------------
+st.markdown('<div class="specimen-frame">', unsafe_allow_html=True)
+st.markdown('<div class="specimen-label">Specimen Upload — JPG · JPEG · PNG</div>', unsafe_allow_html=True)
+# File uploader widget
+uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------
-# Layout
+# Prediction function
 # -------------------------------
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("📤 Upload Butterfly Image")
-
-    uploaded_file = st.file_uploader(
-        "Drop your image here",
-        type=["jpg", "jpeg", "png"]
-    )
-
-    if uploaded_file:
-        img = Image.open(uploaded_file)
-        st.image(img, use_column_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with col2:
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.subheader("🔬 AI Prediction")
-
-    if uploaded_file:
-        if st.button("Predict Now 🚀"):
-            with st.spinner("AI is analyzing wings pattern..."):
-                time.sleep(1)
-
-                img_resized = img.resize((224, 224))
-                arr = image.img_to_array(img_resized)
-                arr = np.expand_dims(arr, axis=0)
-                arr = preprocess_input(arr)
-
-                pred = model.predict(arr)
-                idx = np.argmax(pred)
-                label = encoder.inverse_transform([idx])[0]
-                conf = np.max(pred)
-
-                st.markdown(f"""
-                <div class="result">
-                    <h2>🦋 {label}</h2>
-                    <h4>Confidence: {conf:.2%}</h4>
-                </div>
-                """, unsafe_allow_html=True)
-
-                st.success("Prediction completed!")
-    else:
-        st.info("Upload an image first")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+def predict_butterfly(img):
+    # Resize image to model input size (224x224)
+    img = img.resize((224, 224))
+    # Convert image to array
+    img_array = image.img_to_array(img)
+    # Add batch dimension (1, 224, 224, 3)
+    img_array = np.expand_dims(img_array, axis=0)
+    # Apply EfficientNet preprocessing
+    img_array = preprocess_input(img_array)
+    # Predict using model
+    prediction = model.predict(img_array)
+    # Get highest probability class index
+    predicted_class = np.argmax(prediction)
+    # Convert index to class name
+    class_name = label_encoder.inverse_transform([predicted_class])[0]
+    # Get confidence score
+    confidence = np.max(prediction)
+    return class_name, confidence
 
 # -------------------------------
-# Footer
+# Run prediction when image uploaded
 # -------------------------------
-st.markdown("---")
-st.markdown("<center>✨ Built with Streamlit + EfficientNet</center>", unsafe_allow_html=True)
+if uploaded_file is not None:
+    # Display uploaded image
+    st.image(uploaded_file, caption="Uploaded specimen", use_column_width=True)
+    # Convert uploaded file to PIL image
+    img = image.load_img(uploaded_file)
+
+    # Predict button
+    if st.button("Identify Species"):
+        with st.spinner("Analyzing wing patterns…"):
+            # Get prediction
+            label, confidence = predict_butterfly(img)
+
+        conf_pct = confidence * 100
+
+        # Show result as a styled specimen result card
+        st.markdown(f"""
+        <div class="result-card">
+            <div class="result-eyebrow">Identification Result</div>
+            <div class="result-species">{label.title()}</div>
+            <div class="confidence-row">
+                <span>Model Confidence</span>
+                <span class="confidence-value">{conf_pct:.1f}%</span>
+            </div>
+            <div class="confidence-track">
+                <div class="confidence-fill" style="--target-width: {conf_pct}%;"></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown('<div class="footer-note">EfficientNetB0 · 75 Species · Trained Classifier</div>', unsafe_allow_html=True)
