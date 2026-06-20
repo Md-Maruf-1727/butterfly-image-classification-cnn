@@ -6,6 +6,9 @@ import joblib  # load label encoder
 import tensorflow as tf  # load trained model
 from tensorflow.keras.preprocessing import image  # image loading utility
 from tensorflow.keras.applications.efficientnet import preprocess_input  # preprocessing
+import requests  # fetch image bytes from a URL
+from io import BytesIO  # wrap downloaded bytes as a file-like object
+from PIL import Image as PILImage  # open image bytes from URL
 
 # -------------------------------
 # Page config (must be first Streamlit call)
@@ -282,6 +285,48 @@ st.markdown("""
         to { width: var(--target-width); }
     }
 
+    /* -------- Tabs (Upload / URL) -------- */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.4rem;
+        background: rgba(12, 20, 16, 0.4);
+        padding: 0.3rem;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        margin-bottom: 1.2rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        flex: 1;
+        justify-content: center;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.72rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+        background: transparent;
+        border-radius: 4px;
+        padding: 0.5rem 0.8rem;
+    }
+    .stTabs [aria-selected="true"] {
+        background: rgba(200, 155, 74, 0.14) !important;
+        color: var(--gold-bright) !important;
+    }
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: transparent;
+    }
+
+    [data-testid="stTextInput"] input {
+        background: rgba(12, 20, 16, 0.35);
+        border: 1px dashed var(--line);
+        border-radius: 4px;
+        color: var(--ink);
+        font-family: 'Inter', sans-serif;
+        padding: 0.6rem 0.8rem;
+    }
+    [data-testid="stTextInput"] input:focus {
+        border-color: var(--gold);
+        box-shadow: none;
+    }
+
     /* Footer */
     .footer-note {
         text-align: center;
@@ -307,12 +352,36 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------
-# Upload card
+# Upload card — Upload File or Paste URL
 # -------------------------------
 st.markdown('<div class="specimen-frame">', unsafe_allow_html=True)
-st.markdown('<div class="specimen-label">Specimen Upload — JPG · JPEG · PNG</div>', unsafe_allow_html=True)
-# File uploader widget
-uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+st.markdown('<div class="specimen-label">Specimen Input — Upload or Paste a Link</div>', unsafe_allow_html=True)
+
+# Two tabs: one for local file upload, one for pasting an image URL
+tab_upload, tab_url = st.tabs(["Upload Image", "Paste URL"])
+
+# This will hold a PIL image regardless of which tab is used
+pil_image = None
+
+with tab_upload:
+    # File uploader widget (same as before)
+    uploaded_file = st.file_uploader("Upload Image", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+    if uploaded_file is not None:
+        pil_image = image.load_img(uploaded_file)
+
+with tab_url:
+    # Text input for pasting an online image link
+    image_url = st.text_input("Image URL", placeholder="https://example.com/butterfly.jpg", label_visibility="collapsed")
+    if image_url:
+        try:
+            # Download the image bytes from the given URL
+            response = requests.get(image_url, timeout=10)
+            response.raise_for_status()
+            # Open the downloaded bytes as a PIL image and ensure RGB mode
+            pil_image = PILImage.open(BytesIO(response.content)).convert("RGB")
+        except Exception:
+            st.error("Couldn't load image from that URL. Please check the link and try again.")
+
 st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------------
@@ -338,19 +407,17 @@ def predict_butterfly(img):
     return class_name, confidence
 
 # -------------------------------
-# Run prediction when image uploaded
+# Run prediction when an image is available (from upload or URL)
 # -------------------------------
-if uploaded_file is not None:
-    # Display uploaded image
-    st.image(uploaded_file, caption="Uploaded specimen", use_column_width=True)
-    # Convert uploaded file to PIL image
-    img = image.load_img(uploaded_file)
+if pil_image is not None:
+    # Display the image (works for both upload and URL cases)
+    st.image(pil_image, caption="Uploaded specimen", use_column_width=True)
 
     # Predict button
     if st.button("Identify Species"):
         with st.spinner("Analyzing wing patterns…"):
             # Get prediction
-            label, confidence = predict_butterfly(img)
+            label, confidence = predict_butterfly(pil_image)
 
         conf_pct = confidence * 100
 
